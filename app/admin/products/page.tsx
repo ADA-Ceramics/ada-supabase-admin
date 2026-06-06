@@ -20,6 +20,7 @@ export default function ProductListPage() {
     <div className="max-w-3xl mx-auto p-6">
       <div className="flex justify-between items-center mb-5">
         <h2 className="text-xl font-semibold">产品管理列表</h2>
+        {/* 跳转去新增表单，也就是你原来首页录入页 */}
         <Link href="/admin/products/new" className="bg-black text-white px-4 py-2 rounded hover:opacity-90">
           + 新增产品
         </Link>

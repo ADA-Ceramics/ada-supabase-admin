@@ -31,7 +31,7 @@ export default function EditProductPage() {
         }
 
         // 格式转换
-        data.gallery_images = data.gallery_images ? data.gallery_images.join("\n") : ""
+        data.gallery_images = data.gallery_images ? data.gallery_images.join(",") : ""
         data.price = data.price ? String(data.price) : ""
         data.sort_order = data.sort_order ? String(data.sort_order) : ""
 

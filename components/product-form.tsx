@@ -13,9 +13,11 @@ type FormState = {
   name: string
   slug: string
   main_image: string
+  main_image_alt: string
   category: string
   subcategory: string
   gallery_images: string
+  gallery_images_alt: string[]
   description: string
   specs_size: string
   specs_color: string[]
@@ -30,9 +32,11 @@ const EMPTY_FORM: FormState = {
   name: "",
   slug: "",
   main_image: "",
+  main_image_alt: "",
   category: "",
   subcategory: "",
   gallery_images: "",
+  gallery_images_alt: [""],
   description: "",
   specs_size: "",
   specs_color: [""],
@@ -77,7 +81,7 @@ export function ProductForm({
   const [childCats, setChildCats] = useState<CategoryItem[]>([])
   const [errMsg, setErrMsg] = useState<string | null>(null)
 
-  // ✅ 修复：initForm 只初始化一次，不会覆盖用户输入
+  // 初始化表单数据
   useEffect(() => {
     if (initForm && !form.name) {
       const specs = initForm.specifications || {}
@@ -90,6 +94,9 @@ export function ProductForm({
           : [""],
         specs_weight: specs.weight || "",
         specs_material: specs.material || "Porcelain",
+        gallery_images_alt: Array.isArray(initForm.gallery_images_alt) && initForm.gallery_images_alt.length
+          ? initForm.gallery_images_alt
+          : [""],
         price: initForm.price?.toString() || "",
         sort_order: initForm.sort_order?.toString() || "",
         gallery_images: Array.isArray(initForm.gallery_images)
@@ -161,21 +168,28 @@ export function ProductForm({
     }
   }
 
-  // ✅ 修复：颜色输入的状态更新函数
+  // 颜色处理
   const handleColorChange = (idx: number, val: string) => {
     const newColors = [...form.specs_color]
     newColors[idx] = val
     handleFieldChange("specs_color", newColors)
   }
-
-  const addColorRow = () => {
-    handleFieldChange("specs_color", [...form.specs_color, ""])
-  }
-
+  const addColorRow = () => handleFieldChange("specs_color", [...form.specs_color, ""])
   const removeColorRow = (idx: number) => {
     if (form.specs_color.length <= 1) return
-    const newColors = form.specs_color.filter((_, i) => i !== idx)
-    handleFieldChange("specs_color", newColors)
+    handleFieldChange("specs_color", form.specs_color.filter((_, i) => i !== idx))
+  }
+
+  // 多图 alt 处理
+  const handleGalleryAltChange = (idx: number, val: string) => {
+    const newAlts = [...form.gallery_images_alt]
+    newAlts[idx] = val
+    handleFieldChange("gallery_images_alt", newAlts)
+  }
+  const addGalleryAltRow = () => handleFieldChange("gallery_images_alt", [...form.gallery_images_alt, ""])
+  const removeGalleryAltRow = (idx: number) => {
+    if (form.gallery_images_alt.length <= 1) return
+    handleFieldChange("gallery_images_alt", form.gallery_images_alt.filter((_, i) => i !== idx))
   }
 
   const saveSbConfig = (e: React.FormEvent) => {
@@ -205,16 +219,18 @@ export function ProductForm({
         .split(/[\n,]/)
         .map(i => i.trim())
         .filter(Boolean)
-
       const cleanColors = form.specs_color.map(c => c.trim()).filter(Boolean)
+      const cleanGalleryAlts = form.gallery_images_alt.map(a => a.trim()).filter(Boolean)
 
       const payload = {
         name: form.name.trim(),
         slug: form.slug.trim(),
         main_image: form.main_image.trim(),
+        main_image_alt: form.main_image_alt.trim() || null,
         category: form.category,
         subcategory: form.subcategory,
         gallery_images: galleryArr,
+        gallery_images_alt: cleanGalleryAlts.length ? cleanGalleryAlts : null,
         description: form.description.trim() || null,
         specifications: {
           size: form.specs_size.trim() || null,
@@ -301,6 +317,15 @@ export function ProductForm({
             className="border rounded w-full px-3 py-2"
           />
         </label>
+        {/* 新增：主图 alt 文本 */}
+        <label>主图 alt 文本（SEO优化）
+          <input 
+            value={form.main_image_alt} 
+            onChange={e=>handleFieldChange("main_image_alt",e.target.value)} 
+            className="border rounded w-full px-3 py-2" 
+            placeholder="例如：White rectangular porcelain dinner plate set of 3"
+          />
+        </label>
 
         <div className="grid grid-cols-2 gap-4">
           <label>一级分类 category*
@@ -335,7 +360,7 @@ export function ProductForm({
 
       {showOptional && (
         <div className="mt-4 flex flex-col gap-4">
-          <label>多图（换行/逗号分隔）
+          <label>多图链接（换行/逗号分隔）
             <textarea 
               rows={3} 
               value={form.gallery_images} 
@@ -343,6 +368,30 @@ export function ProductForm({
               className="border rounded w-full px-3 py-2"
             />
           </label>
+          {/* 新增：多图 alt 文本 */}
+          <label>多图 alt 文本（对应上面的图片顺序）
+            {form.gallery_images_alt.map((alt, idx) => (
+              <div key={idx} className="flex gap-2 mt-2">
+                <input
+                  value={alt}
+                  onChange={e=>handleGalleryAltChange(idx, e.target.value)}
+                  className="border rounded flex-1 px-3 py-2"
+                  placeholder={`图片 ${idx+1} alt 文本`}
+                />
+                <button
+                  type="button"
+                  onClick={()=>removeGalleryAltRow(idx)}
+                  className="px-3 py-2 border rounded"
+                >−</button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addGalleryAltRow}
+              className="mt-2 px-3 py-2 border rounded"
+            >+ 增加 alt 文本</button>
+          </label>
+
           <label>描述 description
             <textarea 
               rows={3} 

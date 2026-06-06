@@ -44,7 +44,7 @@ type Status =
   | { type: "success"; name: string }
   | { type: "error"; message: string }
 
-type Category = { id: string; name: string }
+type CategoryItem = { id: string; name: string }
 
 export function ProductForm() {
   const [config, setConfig] = useState<SupabaseConfig | null>(null)
@@ -55,11 +55,11 @@ export function ProductForm() {
   const [showOptional, setShowOptional] = useState(false)
   const [status, setStatus] = useState<Status>({ type: "idle" })
 
-  const [categories, setCategories] = useState<Category[]>([])
-  const [subCategories, setSubCategories] = useState<Category[]>([])
-  const [catError, setCatError] = useState<string | null>(null)
+  const [topCats, setTopCats] = useState<CategoryItem[]>([])
+  const [childCats, setChildCats] = useState<CategoryItem[]>([])
+  const [errMsg, setErrMsg] = useState<string | null>(null)
 
-  // 加载配置
+  // 读取本地supabase配置
   useEffect(() => {
     const saved = loadConfig()
     if (saved) {
@@ -69,251 +69,191 @@ export function ProductForm() {
     }
   }, [])
 
-  // 加载 一级分类（只从Supabase抓 tier=1）
+  // 加载【一级分类 tier=1】
   useEffect(() => {
     if (!config) return
-    let cancelled = false
-    setCatError(null)
-
-    ;(async () => {
+    let abort = false
+    const fetchTop = async () => {
       try {
-        const supabase = makeClient(config)
-        const { data, error } = await supabase
+        const sb = makeClient(config)
+        const { data, error } = await sb
           .from("product_categories")
-          .select("id, name")
+          .select("id,name")
           .eq("tier", 1)
           .order("name")
-
-        if (cancelled) return
-        if (error) {
-          setCatError(error.message)
-          return
-        }
-        setCategories(data ?? [])
-      } catch (err) {
-        if (cancelled) return
-        setCatError("读取分类失败")
+        if (abort) return
+        if (error) throw error
+        setTopCats(data ?? [])
+        setErrMsg(null)
+      } catch (e) {
+        setErrMsg("读取一级分类失败")
       }
-    })()
-
-    return () => {
-      cancelled = true
     }
+    fetchTop()
+    return () => { abort = true }
   }, [config])
 
-  // 选中一级后，自动加载 二级分类（抓 tier=2 + parent_id=一级ID）
+  // 选中一级 → 自动加载对应二级 tier=2 & parent_id=选中一级id
   useEffect(() => {
     if (!config || !form.category) {
-      setSubCategories([])
+      setChildCats([])
       return
     }
-
-    let cancelled = false
-    ;(async () => {
-      const supabase = makeClient(config)
-      const { data } = await supabase
+    let abort = false
+    const fetchChild = async () => {
+      const sb = makeClient(config)
+      const { data } = await sb
         .from("product_categories")
-        .select("id, name")
+        .select("id,name")
         .eq("tier", 2)
         .eq("parent_id", form.category)
         .order("name")
-
-      if (!cancelled) setSubCategories(data ?? [])
-    })()
-
-    return () => {
-      cancelled = true
+      if (!abort) setChildCats(data ?? [])
     }
+    fetchChild()
+    return () => { abort = true }
   }, [config, form.category])
 
-  function update<K extends keyof FormState>(key: K, value: FormState[K]) {
+  const handleFieldChange = <K extends keyof FormState>(key: K, val: FormState[K]) => {
+    // 更换一级，清空二级
     if (key === "category") {
-      setForm((prev) => ({ ...prev, category: value, subcategory: "" }))
+      setForm(prev => ({ ...prev, category: val, subcategory: "" }))
     } else {
-      setForm((prev) => ({ ...prev, [key]: value }))
+      setForm(prev => ({ ...prev, [key]: val }))
     }
   }
 
-  function handleSaveConfig(e: React.FormEvent) {
+  const saveSbConfig = (e: React.FormEvent) => {
     e.preventDefault()
-    const next: SupabaseConfig = { url: urlInput.trim(), anonKey: keyInput.trim() }
-    if (!next.url || !next.anonKey) return
-    saveConfig(next)
-    setConfig(next)
+    const cfg: SupabaseConfig = { url: urlInput.trim(), anonKey: keyInput.trim() }
+    saveConfig(cfg)
+    setConfig(cfg)
   }
 
-  function handleResetConfig() {
+  const resetSb = () => {
     clearConfig()
     setConfig(null)
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  // 提交入库：category存UUID，subcategory存分类名字符串
+  const submitForm = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!config) return
-
-    if (
-      !form.name.trim() ||
-      !form.slug.trim() ||
-      !form.main_image.trim() ||
-      !form.category ||
-      !form.subcategory
-    ) {
-      setStatus({ type: "error", message: "请填写所有必填项" })
+    if (!form.name || !form.slug || !form.main_image || !form.category || !form.subcategory) {
+      setStatus({ type: "error", message: "必填项不能为空" })
       return
     }
-
     setStatus({ type: "submitting" })
-
-    const gallery = form.gallery_images
-      .split(/[\n,]/)
-      .map((s) => s.trim())
-      .filter(Boolean)
-
+    const galleryArr = form.gallery_images.split(/[,\\n]/).map(i => i.trim()).filter(Boolean)
     const payload = {
       name: form.name.trim(),
       slug: form.slug.trim(),
       main_image: form.main_image.trim(),
       category: form.category,
-      subcategory: form.subcategory, // 👈 直接存 二级分类名称
-      gallery_images: gallery,
+      subcategory: form.subcategory,
+      gallery_images: galleryArr,
       description: form.description.trim() || null,
       specifications: form.specifications.trim() || null,
       is_active: form.is_active,
       price: form.price ? Number(form.price) : null,
-      sort_order: form.sort_order ? Number(form.sort_order) : null,
+      sort_order: form.sort_order ? Number(form.sort_order) : null
     }
-
     try {
-      const supabase = makeClient(config)
-      const { error } = await supabase.from("products").insert(payload)
+      const sb = makeClient(config)
+      const { error } = await sb.from("products").insert(payload)
       if (error) throw error
-
       setStatus({ type: "success", name: form.name })
       setForm(EMPTY_FORM)
+      setShowOptional(false)
     } catch (err) {
-      setStatus({
-        type: "error",
-        message: err instanceof Error ? err.message : "提交失败",
-      })
+      setStatus({ type: "error", message: err instanceof Error ? err.message : "提交异常" })
     }
   }
 
+  // 未配置连接页面
   if (!config) {
     return (
-      <form onSubmit={handleSaveConfig} className="mx-auto w-full max-w-md rounded-xl border p-6 shadow">
-        <h2 className="text-lg font-semibold">连接 Supabase</h2>
-        <p className="text-sm text-gray-500 mt-1">填入 URL 和 anon key</p>
-        <div className="mt-5 flex flex-col gap-4">
-          <Field label="Supabase URL" required>
-            <input
-              type="url"
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              className={inputClass}
-              required
-            />
-          </Field>
-          <Field label="anon key" required>
-            <input
-              type="password"
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value)}
-              className={inputClass}
-              required
-            />
-          </Field>
+      <form onSubmit={saveSbConfig} className="max-w-md mx-auto border rounded-xl p-6">
+        <h2 className="text-lg font-semibold">连接Supabase</h2>
+        <div className="mt-4 flex flex-col gap-3">
+          <label>Supabase URL<input required value={urlInput} onChange={e=>setUrlInput(e.target.value)} className="border rounded px-2 py-1.5 w-full"/></label>
+          <label>Anon Key<input required value={keyInput} onChange={e=>setKeyInput(e.target.value)} className="border rounded px-2 py-1.5 w-full"/></label>
         </div>
-        <button type="submit" className={primaryBtnClass + " mt-6"}>
-          保存并继续
-        </button>
+        <button type="submit" className="bg-black text-white w-full py-2 rounded mt-5">保存连接</button>
       </form>
     )
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mx-auto w-full max-w-2xl rounded-xl border p-6 shadow">
-      <h2 className="text-lg font-semibold">产品录入</h2>
+    <form onSubmit={submitForm} className="max-w-2xl mx-auto border rounded-xl p-6">
+      <div className="flex justify-between items-center mb-5">
+        <h2 className="text-xl font-semibold">录入产品</h2>
+        <button type="button" onClick={resetSb} className="text-sm text-gray-500 underline">重设连接</button>
+      </div>
+      {errMsg && <p className="text-red-500 text-sm mb-3">{errMsg}</p>}
 
-      {catError && <p className="mt-4 text-red-500 text-sm">{catError}</p>}
-
-      <div className="mt-5 flex flex-col gap-4">
-        <Field label="产品名" required>
-          <input value={form.name} onChange={(e) => update("name", e.target.value)} className={inputClass} />
-        </Field>
-
-        <Field label="URL 别名" required>
-          <input value={form.slug} onChange={(e) => update("slug", e.target.value)} className={inputClass} />
-        </Field>
-
-        <Field label="主图链接" required>
-          <input type="url" value={form.main_image} onChange={(e) => update("main_image", e.target.value)} className={inputClass} />
-        </Field>
+      <div className="flex flex-col gap-4">
+        <label>产品名 name*
+          <input value={form.name} onChange={e=>handleFieldChange("name",e.target.value)} className="border rounded w-full px-3 py-2" placeholder="例如：8英寸陶瓷餐盘"/>
+        </label>
+        <label>URL别名 slug*
+          <input value={form.slug} onChange={e=>handleFieldChange("slug",e.target.value)} className="border rounded w-full px-3 py-2" placeholder="8-inch-ceramic-dinner-plate"/>
+        </label>
+        <label>主图链接 main_image*
+          <input type="url" value={form.main_image} onChange={e=>handleFieldChange("main_image",e.target.value)} className="border rounded w-full px-3 py-2"/>
+        </label>
 
         <div className="grid grid-cols-2 gap-4">
-          <Field label="一级分类" required>
-            <select
-              value={form.category}
-              onChange={(e) => update("category", e.target.value)}
-              className={inputClass}
-            >
+          {/*一级分类：DB tier=1 */}
+          <label>一级分类 category*
+            <select value={form.category} onChange={e=>handleFieldChange("category",e.target.value)} className="border rounded w-full px-3 py-2">
               <option value="">请选择</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
+              {topCats.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
-          </Field>
-
-          <Field label="二级分类" required>
-            <select
-              value={form.subcategory}
-              onChange={(e) => update("subcategory", e.target.value)}
-              disabled={!form.category}
-              className={inputClass}
-            >
-              <option value="">请选择</option>
-              {subCategories.map((s) => (
-                <option key={s.id} value={s.name}>{s.name}</option>
-              ))}
+          </label>
+          {/*二级分类：DB tier=2 绑定父ID */}
+          <label>二级分类 subcategory*
+            <select disabled={!form.category} value={form.subcategory} onChange={e=>handleFieldChange("subcategory",e.target.value)} className="border rounded w-full px-3 py-2 disabled:opacity-50">
+              <option value="">{form.category ? "请选择" : "请先选一级分类"}</option>
+              {childCats.map(item=><option key={item.id} value={item.name}>{item.name}</option>)}
             </select>
-          </Field>
+          </label>
         </div>
       </div>
 
-      <button type="button" onClick={() => setShowOptional(!showOptional)} className="mt-6 w-full border p-2 rounded">
-        {showOptional ? "收起选填" : "展开选填"}
+      <button type="button" onClick={()=>setShowOptional(!showOptional)} className="w-full border rounded py-2 mt-5 flex justify-between px-3">
+        <span>选填信息</span>
+        <span>{showOptional ? "收起 −" : "展开 +"}</span>
       </button>
 
       {showOptional && (
         <div className="mt-4 flex flex-col gap-4">
-          <Field label="多图链接"><textarea value={form.gallery_images} onChange={(e) => update("gallery_images", e.target.value)} rows={3} className={inputClass} /></Field>
-          <Field label="描述"><textarea value={form.description} onChange={(e) => update("description", e.target.value)} rows={3} className={inputClass} /></Field>
-          <Field label="规格"><textarea value={form.specifications} onChange={(e) => update("specifications", e.target.value)} rows={3} className={inputClass} /></Field>
+          <label>多图（换行/逗号分隔）
+            <textarea rows={3} value={form.gallery_images} onChange={e=>handleFieldChange("gallery_images",e.target.value)} className="border rounded w-full px-3 py-2"/>
+          </label>
+          <label>描述 description
+            <textarea rows={3} value={form.description} onChange={e=>handleFieldChange("description",e.target.value)} className="border rounded w-full px-3 py-2"/>
+          </label>
+          <label>规格 specifications
+            <textarea rows={3} value={form.specifications} onChange={e=>handleFieldChange("specifications",e.target.value)} className="border rounded w-full px-3 py-2"/>
+          </label>
           <div className="grid grid-cols-2 gap-4">
-            <Field label="价格"><input type="number" step="0.01" value={form.price} onChange={(e) => update("price", e.target.value)} className={inputClass} /></Field>
-            <Field label="排序"><input type="number" value={form.sort_order} onChange={(e) => update("sort_order", e.target.value)} className={inputClass} /></Field>
+            <label>批发价 price<input type="number" step="0.01" value={form.price} onChange={e=>handleFieldChange("price",e.target.value)} className="border rounded w-full px-3 py-2"/></label>
+            <label>排序 sort_order<input type="number" value={form.sort_order} onChange={e=>handleFieldChange("sort_order",e.target.value)} className="border rounded w-full px-3 py-2"/></label>
           </div>
-          <label className="flex items-center gap-2"><input type="checkbox" checked={form.is_active} onChange={(e) => update("is_active", e.target.checked)} />上架</label>
+          <label className="flex items-center gap-2">
+            <input checked={form.is_active} onChange={e=>handleFieldChange("is_active",e.target.checked)} type="checkbox"/>
+            上架产品
+          </label>
         </div>
       )}
 
-      {status.type === "error" && <p className="mt-4 text-red-500">{status.message}</p>}
-      {status.type === "success" && <p className="mt-4 text-green-600">✅ 提交成功：{status.name}</p>}
+      {status.type === "error" && <p className="text-red-500 mt-4">{status.message}</p>}
+      {status.type === "success" && <p className="text-green-600 mt-4">已成功录入：{status.name}</p>}
 
-      <button type="submit" disabled={status.type === "submitting"} className={primaryBtnClass + " mt-6"}>
-        {status.type === "submitting" ? "提交中…" : "提交产品"}
+      <button disabled={status.type === "submitting"} className="bg-black text-white w-full py-3 rounded-lg mt-5 disabled:opacity-60">
+        {status.type === "submitting" ? "提交中…" : "提交录入"}
       </button>
     </form>
   )
 }
-
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span>{label} {required && <span className="text-red-500">*</span>}</span>
-      {children}
-    </label>
-  )
-}
-
-const inputClass = "w-full rounded-lg border p-2 text-sm outline-none focus:ring-2"
-const primaryBtnClass = "w-full rounded-lg bg-black text-white p-2 hover:opacity-90"

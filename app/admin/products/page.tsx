@@ -20,7 +20,7 @@ export default function ProductListPage() {
     <div className="max-w-3xl mx-auto p-6">
       <div className="flex justify-between items-center mb-5">
         <h2 className="text-xl font-semibold">产品管理列表</h2>
-        <Link href="/admin/products/new" className="bg-black text-white px-4 py-2 rounded">
+        <Link href="/admin/products/new" className="bg-black text-white px-4 py-2 rounded hover:opacity-90">
           + 新增产品
         </Link>
       </div>
@@ -32,7 +32,7 @@ export default function ProductListPage() {
           {list.map(item => (
             <div key={item.id} className="border p-4 flex justify-between items-center rounded-lg">
               <span>{item.name}</span>
-              <Link href={`/admin/products/edit/${item.id}`} className="text-blue-600 underline">
+              <Link href={`/admin/products/edit/${item.id}`} className="text-blue-600 underline hover:text-blue-800">
                 编辑
               </Link>
             </div>

@@ -8,21 +8,24 @@ import { loadConfig, makeClient } from "@/lib/supabase"
 export default function EditProductPage() {
   const { id } = useParams()
   const [initData, setInitData] = useState(null)
-  const cfg = loadConfig()
+  const config = loadConfig()
 
   useEffect(() => {
-    if (!cfg || !id) return
-    const sb = makeClient(cfg)
-    const getDetail = async () => {
+    if (!config || !id) return
+    const sb = makeClient(config)
+    const getProductData = async () => {
       const { data } = await sb.from("products").select("*").eq("id", id).single()
-      // 把多图数组转成换行分隔的字符串，让表单能正常编辑
-      if (data?.gallery_images) {
-        data.gallery_images = data.gallery_images.join("\n")
+      if (data) {
+        // 关键：把多图数组转成字符串，让表单能正常编辑
+        data.gallery_images = data.gallery_images ? data.gallery_images.join("\n") : ""
+        // 价格和排序转成字符串，避免数字转字符串报错
+        data.price = data.price ? String(data.price) : ""
+        data.sort_order = data.sort_order ? String(data.sort_order) : ""
+        setInitData(data)
       }
-      setInitData(data)
     }
-    getDetail()
-  }, [id, cfg])
+    getProductData()
+  }, [id, config])
 
   if (!initData) return <div className="p-6 text-center">加载产品数据中...</div>
 

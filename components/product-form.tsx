@@ -64,7 +64,7 @@ export function ProductForm({
   const [childCats, setChildCats] = useState<CategoryItem[]>([])
   const [errMsg, setErrMsg] = useState<string | null>(null)
 
-  // ✅✅✅ 已经修复：只加载一次
+  // ✅ 只加载一次，不会反复覆盖
   useEffect(() => {
     if (initForm) {
       setForm(initForm)
@@ -80,6 +80,7 @@ export function ProductForm({
     }
   }, [])
 
+  // 查询一级分类
   useEffect(() => {
     if (!config) return
     let abort = false
@@ -103,6 +104,7 @@ export function ProductForm({
     return () => { abort = true }
   }, [config])
 
+  // 查询二级分类
   useEffect(() => {
     if (!config || !form.category) {
       setChildCats([])
@@ -159,7 +161,7 @@ export function ProductForm({
       slug: form.slug.trim(),
       main_image: form.main_image.trim(),
       category: form.category,
-      subcategory: subcategory: form.subcategory,
+      subcategory: form.subcategory,
       gallery_images: galleryArr,
       description: form.description.trim() || null,
       specifications: form.specifications.trim() || null,

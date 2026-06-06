@@ -17,7 +17,11 @@ type FormState = {
   subcategory: string
   gallery_images: string
   description: string
-  specifications: string
+  // 结构化 specs
+  specs_size: string
+  specs_color: string[] // 多个颜色
+  specs_weight: string
+  specs_material: "Porcelain" | "Stoneware" | "New Born China"
   is_active: boolean
   price: string
   sort_order: string
@@ -31,7 +35,10 @@ const EMPTY_FORM: FormState = {
   subcategory: "",
   gallery_images: "",
   description: "",
-  specifications: "",
+  specs_size: "",
+  specs_color: [""], // 默认一行
+  specs_weight: "",
+  specs_material: "Porcelain",
   is_active: true,
   price: "",
   sort_order: "",
@@ -50,7 +57,14 @@ export function ProductForm({
   initForm = null,
 }: {
   editId?: string | null
-  initForm?: Partial<FormState> | null
+  initForm?: Partial<FormState> & {
+    specifications?: {
+      size?: string
+      color?: string[]
+      weight?: string
+      material?: "Porcelain" | "Stoneware" | "New Born China"
+    }
+  } | null
 }) {
   const [config, setConfig] = useState<SupabaseConfig | null>(null)
   const [urlInput, setUrlInput] = useState("")
@@ -64,14 +78,19 @@ export function ProductForm({
   const [childCats, setChildCats] = useState<CategoryItem[]>([])
   const [errMsg, setErrMsg] = useState<string | null>(null)
 
-  // ✅ 修复：只加载一次，不会覆盖你输入的内容
+  // ===== 初始化：把 specifications JSON 拆成字段 =====
   useEffect(() => {
     if (initForm) {
+      const specs = initForm.specifications || {}
       setForm({
         ...EMPTY_FORM,
         ...initForm,
-        description: initForm.description ?? "",
-        specifications: initForm.specifications ?? "",
+        specs_size: specs.size || "",
+        specs_color: Array.isArray(specs.color) && specs.color.length
+          ? specs.color
+          : [""],
+        specs_weight: specs.weight || "",
+        specs_material: specs.material || "Porcelain",
         price: initForm.price?.toString() || "",
         sort_order: initForm.sort_order?.toString() || "",
         gallery_images: Array.isArray(initForm.gallery_images)
@@ -79,7 +98,7 @@ export function ProductForm({
           : initForm.gallery_images || "",
       })
     }
-  }, [])
+  }, [initForm])
 
   useEffect(() => {
     const saved = loadConfig()
@@ -143,6 +162,25 @@ export function ProductForm({
     }
   }
 
+  // ===== 颜色：单行更新 =====
+  const handleColorChange = (idx: number, val: string) => {
+    const newColors = [...form.specs_color]
+    newColors[idx] = val
+    handleFieldChange("specs_color", newColors)
+  }
+
+  // ===== 颜色：加一行 =====
+  const addColorRow = () => {
+    handleFieldChange("specs_color", [...form.specs_color, ""])
+  }
+
+  // ===== 颜色：删一行 =====
+  const removeColorRow = (idx: number) => {
+    if (form.specs_color.length <= 1) return
+    const newColors = form.specs_color.filter((_, i) => i !== idx)
+    handleFieldChange("specs_color", newColors)
+  }
+
   const saveSbConfig = (e: React.FormEvent) => {
     e.preventDefault()
     const cfg: SupabaseConfig = { url: urlInput.trim(), anonKey: keyInput.trim() }
@@ -155,7 +193,7 @@ export function ProductForm({
     setConfig(null)
   }
 
-  // ✅ 修复：提交不会报错，空值安全处理
+  // ===== 提交：拼装 specifications 为 JSON =====
   const submitForm = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!config) return
@@ -172,6 +210,9 @@ export function ProductForm({
         .map(i => i.trim())
         .filter(Boolean)
 
+      // 颜色去空
+      const cleanColors = form.specs_color.map(c => c.trim()).filter(Boolean)
+
       const payload = {
         name: form.name.trim(),
         slug: form.slug.trim(),
@@ -179,8 +220,14 @@ export function ProductForm({
         category: form.category,
         subcategory: form.subcategory,
         gallery_images: galleryArr,
-        description: form.description?.trim() || null,
-        specifications: form.specifications?.trim() || null,
+        description: form.description.trim() || null,
+        // 结构化 specs 存入 JSONB
+        specifications: {
+          size: form.specs_size.trim() || null,
+          color: cleanColors,
+          weight: form.specs_weight.trim() || null,
+          material: form.specs_material,
+        },
         is_active: form.is_active,
         price: form.price?.trim() ? Number(form.price) : null,
         sort_order: form.sort_order?.trim() ? Number(form.sort_order) : null,
@@ -288,7 +335,7 @@ export function ProductForm({
       </div>
 
       <button type="button" onClick={()=>setShowOptional(!showOptional)} className="w-full border rounded py-2 mt-5 flex justify-between px-3">
-        <span>选填信息</span>
+        <span>选填信息 & 规格</span>
         <span>{showOptional ? "收起 −" : "展开 +"}</span>
       </button>
 
@@ -310,18 +357,89 @@ export function ProductForm({
               className="border rounded w-full px-3 py-2"
             />
           </label>
-          <label>规格 specifications
-            <textarea 
-              rows={3} 
-              value={form.specifications} 
-              onChange={e=>handleFieldChange("specifications",e.target.value)} 
-              className="border rounded w-full px-3 py-2"
-            />
-          </label>
-          <div className="grid grid-cols-2 gap-4">
-            <label>批发价 price<input type="number" step="0.01" value={form.price} onChange={e=>handleFieldChange("price",e.target.value)} className="border rounded w-full px-3 py-2"/></label>
-            <label>排序 sort_order<input type="number" value={form.sort_order} onChange={e=>handleFieldChange("sort_order",e.target.value)} className="border rounded w-full px-3 py-2"/></label>
+
+          {/* ===== 规格：size / color / weight / material ===== */}
+          <div className="border-t pt-4">
+            <h3 className="font-semibold mb-3">产品规格</h3>
+
+            <div className="grid grid-cols-2 gap-4">
+              <label>尺寸 size
+                <input
+                  value={form.specs_size}
+                  onChange={e=>handleFieldChange("specs_size", e.target.value)}
+                  className="border rounded w-full px-3 py-2"
+                  placeholder="例如：20x20x5 cm"
+                />
+              </label>
+
+              <label>重量 weight
+                <input
+                  value={form.specs_weight}
+                  onChange={e=>handleFieldChange("specs_weight", e.target.value)}
+                  className="border rounded w-full px-3 py-2"
+                  placeholder="例如：0.8 kg"
+                />
+              </label>
+            </div>
+
+            <label className="mt-4 block">
+              颜色 color（可多填）
+              {form.specs_color.map((c, idx) => (
+                <div key={idx} className="flex gap-2 mt-2">
+                  <input
+                    value={c}
+                    onChange={e=>handleColorChange(idx, e.target.value)}
+                    className="border rounded flex-1 px-3 py-2"
+                    placeholder="例如：White, Blue"
+                  />
+                  <button
+                    type="button"
+                    onClick={()=>removeColorRow(idx)}
+                    className="px-3 py-2 border rounded"
+                  >−</button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addColorRow}
+                className="mt-2 px-3 py-2 border rounded"
+              >+ 增加颜色</button>
+            </label>
+
+            <label className="mt-4 block">
+              材质 material
+              <select
+                value={form.specs_material}
+                onChange={e=>handleFieldChange("specs_material", e.target.value as any)}
+                className="border rounded w-full px-3 py-2"
+              >
+                <option value="Porcelain">Porcelain</option>
+                <option value="Stoneware">Stoneware</option>
+                <option value="New Born China">New Born China</option>
+              </select>
+            </label>
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <label>批发价 price
+              <input
+                type="number"
+                step="0.01"
+                value={form.price}
+                onChange={e=>handleFieldChange("price",e.target.value)}
+                className="border rounded w-full px-3 py-2"
+              />
+            </label>
+            <label>排序 sort_order
+              <input
+                type="number"
+                value={form.sort_order}
+                onChange={e=>handleFieldChange("sort_order",e.target.value)}
+                className="border rounded w-full px-3 py-2"
+              />
+            </label>
+          </div>
+
           <label className="flex items-center gap-2">
             <input checked={form.is_active} onChange={e=>handleFieldChange("is_active",e.target.checked)} type="checkbox"/>
             上架产品

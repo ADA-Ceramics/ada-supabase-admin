@@ -163,8 +163,9 @@ export function ProductForm() {
       setForm(EMPTY_FORM)
       setShowOptional(false)
     } catch (err) {
-      setStatus({ type: "error", message: err instanceof Error ? err.message : "提交异常" })
-    }
+  console.log("完整提交错误详情：", err)
+  setStatus({ type: "error", message: err instanceof Error ? err.message : `提交异常:${String(err)}` })
+}
   }
 
   if (!config) {

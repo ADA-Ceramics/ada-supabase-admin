@@ -25,10 +25,9 @@ export default function EditProductPage() {
 
         if (error || !data) return
 
-        data.gallery_images = Array.isArray(data.gallery_images)
-          ? data.gallery_images.join("\n")
-          : data.gallery_images || ""
-
+       data.gallery_images = Array.isArray(data.gallery_images)
+  ? data.gallery_images.join(",")   // 换行 \n → 逗号 ,
+  : data.gallery_images || ""
         data.price = data.price?.toString() || ""
         data.sort_order = data.sort_order?.toString() || ""
 

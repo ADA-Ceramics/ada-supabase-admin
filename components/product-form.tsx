@@ -17,9 +17,8 @@ type FormState = {
   subcategory: string
   gallery_images: string
   description: string
-  // 结构化 specs
   specs_size: string
-  specs_color: string[] // 多个颜色
+  specs_color: string[]
   specs_weight: string
   specs_material: "Porcelain" | "Stoneware" | "New Born China"
   is_active: boolean
@@ -36,7 +35,7 @@ const EMPTY_FORM: FormState = {
   gallery_images: "",
   description: "",
   specs_size: "",
-  specs_color: [""], // 默认一行
+  specs_color: [""],
   specs_weight: "",
   specs_material: "Porcelain",
   is_active: true,
@@ -78,9 +77,9 @@ export function ProductForm({
   const [childCats, setChildCats] = useState<CategoryItem[]>([])
   const [errMsg, setErrMsg] = useState<string | null>(null)
 
-  // ===== 初始化：把 specifications JSON 拆成字段 =====
+  // ✅ 修复：initForm 只初始化一次，不会覆盖用户输入
   useEffect(() => {
-    if (initForm) {
+    if (initForm && !form.name) {
       const specs = initForm.specifications || {}
       setForm({
         ...EMPTY_FORM,
@@ -98,7 +97,7 @@ export function ProductForm({
           : initForm.gallery_images || "",
       })
     }
-  }, [initForm])
+  }, [initForm, form.name])
 
   useEffect(() => {
     const saved = loadConfig()
@@ -162,19 +161,17 @@ export function ProductForm({
     }
   }
 
-  // ===== 颜色：单行更新 =====
+  // ✅ 修复：颜色输入的状态更新函数
   const handleColorChange = (idx: number, val: string) => {
     const newColors = [...form.specs_color]
     newColors[idx] = val
     handleFieldChange("specs_color", newColors)
   }
 
-  // ===== 颜色：加一行 =====
   const addColorRow = () => {
     handleFieldChange("specs_color", [...form.specs_color, ""])
   }
 
-  // ===== 颜色：删一行 =====
   const removeColorRow = (idx: number) => {
     if (form.specs_color.length <= 1) return
     const newColors = form.specs_color.filter((_, i) => i !== idx)
@@ -193,7 +190,6 @@ export function ProductForm({
     setConfig(null)
   }
 
-  // ===== 提交：拼装 specifications 为 JSON =====
   const submitForm = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!config) return
@@ -210,7 +206,6 @@ export function ProductForm({
         .map(i => i.trim())
         .filter(Boolean)
 
-      // 颜色去空
       const cleanColors = form.specs_color.map(c => c.trim()).filter(Boolean)
 
       const payload = {
@@ -221,7 +216,6 @@ export function ProductForm({
         subcategory: form.subcategory,
         gallery_images: galleryArr,
         description: form.description.trim() || null,
-        // 结构化 specs 存入 JSONB
         specifications: {
           size: form.specs_size.trim() || null,
           color: cleanColors,
@@ -358,7 +352,6 @@ export function ProductForm({
             />
           </label>
 
-          {/* ===== 规格：size / color / weight / material ===== */}
           <div className="border-t pt-4">
             <h3 className="font-semibold mb-3">产品规格</h3>
 

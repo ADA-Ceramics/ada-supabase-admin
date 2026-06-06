@@ -46,7 +46,14 @@ type Status =
 
 type CategoryItem = { id: string; name: string }
 
-export function ProductForm() {
+// 新增：支持编辑模式的参数
+export function ProductForm({
+  editId = null,
+  initForm = null,
+}: {
+  editId?: string | null
+  initForm?: FormState | null
+}) {
   const [config, setConfig] = useState<SupabaseConfig | null>(null)
   const [urlInput, setUrlInput] = useState("")
   const [keyInput, setKeyInput] = useState("")
@@ -59,6 +66,13 @@ export function ProductForm() {
   const [childCats, setChildCats] = useState<CategoryItem[]>([])
   const [errMsg, setErrMsg] = useState<string | null>(null)
 
+  // 编辑模式：自动回填数据
+  useEffect(() => {
+    if (initForm) {
+      setForm(initForm)
+    }
+  }, [initForm])
+
   useEffect(() => {
     const saved = loadConfig()
     if (saved) {
@@ -68,7 +82,7 @@ export function ProductForm() {
     }
   }, [])
 
-  // 固定：只查询 tier=1 一级大类（你数据库里的5个）
+  // 查询一级分类
   useEffect(() => {
     if (!config) return
     let abort = false
@@ -92,7 +106,7 @@ export function ProductForm() {
     return () => { abort = true }
   }, [config])
 
-  // 选中一级，只查对应parent_id、tier=2的二级
+  // 查询二级分类
   useEffect(() => {
     if (!config || !form.category) {
       setChildCats([])
@@ -133,6 +147,7 @@ export function ProductForm() {
     setConfig(null)
   }
 
+  // 提交：支持 新增 / 编辑
   const submitForm = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!config) return
@@ -140,8 +155,10 @@ export function ProductForm() {
       setStatus({ type: "error", message: "必填项不能为空" })
       return
     }
+
     setStatus({ type: "submitting" })
     const galleryArr = form.gallery_images.split(/[,\\n]/).map(i => i.trim()).filter(Boolean)
+
     const payload = {
       name: form.name.trim(),
       slug: form.slug.trim(),
@@ -155,17 +172,34 @@ export function ProductForm() {
       price: form.price ? Number(form.price) : null,
       sort_order: form.sort_order ? Number(form.sort_order) : null
     }
+
     try {
       const sb = makeClient(config)
-      const { error } = await sb.from("products").insert(payload)
-      if (error) throw error
+
+      if (editId) {
+        // 编辑模式：更新数据
+        const { error } = await sb
+          .from("products")
+          .update(payload)
+          .eq("id", editId)
+        if (error) throw error
+      } else {
+        // 新增模式：插入数据
+        const { error } = await sb.from("products").insert(payload)
+        if (error) throw error
+      }
+
       setStatus({ type: "success", name: form.name })
-      setForm(EMPTY_FORM)
-      setShowOptional(false)
+
+      if (!editId) {
+        setForm(EMPTY_FORM)
+        setShowOptional(false)
+      }
+
     } catch (err) {
-  console.log("完整提交错误详情：", err)
-  setStatus({ type: "error", message: err instanceof Error ? err.message : `提交异常:${String(err)}` })
-}
+      console.log("完整提交错误详情：", err)
+      setStatus({ type: "error", message: err instanceof Error ? err.message : `提交异常:${String(err)}` })
+    }
   }
 
   if (!config) {
@@ -184,7 +218,9 @@ export function ProductForm() {
   return (
     <form onSubmit={submitForm} className="max-w-2xl mx-auto border rounded-xl p-6">
       <div className="flex justify-between items-center mb-5">
-        <h2 className="text-xl font-semibold">录入产品</h2>
+        <h2 className="text-xl font-semibold">
+          {editId ? "编辑产品" : "录入产品"}
+        </h2>
         <button type="button" onClick={resetSb} className="text-sm text-gray-500 underline">重设连接</button>
       </div>
       {errMsg && <p className="text-red-500 text-sm mb-3">{errMsg}</p>}
@@ -201,7 +237,6 @@ export function ProductForm() {
         </label>
 
         <div className="grid grid-cols-2 gap-4">
-          {/* 一级分类：自动加载 tier=1 的5个大类 */}
           <label>一级分类 category*
             <select value={form.category} onChange={e=>handleFieldChange("category",e.target.value)} className="border rounded w-full px-3 py-2">
               <option value="">请选择</option>
@@ -209,7 +244,6 @@ export function ProductForm() {
             </select>
           </label>
           
-          {/* 二级分类：已修复 value={item.id} */}
           <label>二级分类 subcategory*
             <select disabled={!form.category} value={form.subcategory} onChange={e=>handleFieldChange("subcategory",e.target.value)} className="border rounded w-full px-3 py-2 disabled:opacity-50">
               <option value="">{form.category ? "请选择" : "请先选一级分类"}</option>
@@ -247,10 +281,10 @@ export function ProductForm() {
       )}
 
       {status.type === "error" && <p className="text-red-500 mt-4">{status.message}</p>}
-      {status.type === "success" && <p className="text-green-600 mt-4">已成功录入：{status.name}</p>}
+      {status.type === "success" && <p className="text-green-600 mt-4">已成功{editId ? "更新" : "录入"}：{status.name}</p>}
 
       <button disabled={status.type === "submitting"} className="bg-black text-white w-full py-3 rounded-lg mt-5 disabled:opacity-60">
-        {status.type === "submitting" ? "提交中…" : "提交录入"}
+        {status.type === "submitting" ? "提交中…" : editId ? "保存修改" : "提交录入"}
       </button>
     </form>
   )

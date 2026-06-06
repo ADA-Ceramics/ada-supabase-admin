@@ -65,19 +65,19 @@ export function ProductForm({
   const [errMsg, setErrMsg] = useState<string | null>(null)
 
   // ✅ 修复：监听 initForm 变化，数据加载后自动填充，类型转换正确
-  useEffect(() => {
-    if (initForm) {
-      setForm({
-        ...EMPTY_FORM,
-        ...initForm,
-        price: initForm.price?.toString() || "",
-        sort_order: initForm.sort_order?.toString() || "",
-        gallery_images: Array.isArray(initForm.gallery_images)
-          ? initForm.gallery_images.join(",")
-          : initForm.gallery_images || "",
-      })
-    }
-  }, [initForm])
+ useEffect(() => {
+  if (initForm) {
+    setForm({
+      ...EMPTY_FORM,
+      ...initForm,
+      price: initForm.price?.toString() || "",
+      sort_order: initForm.sort_order?.toString() || "",
+      gallery_images: Array.isArray(initForm.gallery_images)
+        ? initForm.gallery_images.join(",")
+        : initForm.gallery_images || "",
+    })
+  }
+}, []) // 👈 空数组！只加载一次，不会覆盖你输入的内容
 
   useEffect(() => {
     const saved = loadConfig()

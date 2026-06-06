@@ -1,9 +1,7 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect, useMemo, useState } from "react"
-import { CATEGORY_MAP } from "@/lib/categories"
 import {
   clearConfig,
   loadConfig,
@@ -58,6 +56,7 @@ export function ProductForm() {
   const [status, setStatus] = useState<Status>({ type: "idle" })
 
   const [categories, setCategories] = useState<Category[]>([])
+  const [subCategories, setSubCategories] = useState<Category[]>([])
   const [catError, setCatError] = useState<string | null>(null)
 
   // 载入本机已保存配置
@@ -70,7 +69,7 @@ export function ProductForm() {
     }
   }, [])
 
-  // 从 product_categories 表读取分类（id 为 UUID 主键，name 为分类名）
+  // 读取【一级分类 tier=1】
   useEffect(() => {
     if (!config) return
     let cancelled = false
@@ -81,6 +80,7 @@ export function ProductForm() {
         const { data, error } = await supabase
           .from("product_categories")
           .select("id, name")
+          .eq("tier", 1)
           .order("name", { ascending: true })
         if (cancelled) return
         if (error) {
@@ -98,18 +98,29 @@ export function ProductForm() {
     }
   }, [config])
 
-  // 当前所选分类的名称（用于联动二级分类）
-  const selectedCategoryName = useMemo(
-    () => categories.find((c) => c.id === form.category)?.name ?? "",
-    [categories, form.category],
-  )
-
-  const subOptions = useMemo(
-    () => (selectedCategoryName ? CATEGORY_MAP[selectedCategoryName] ?? [] : []),
-    [selectedCategoryName],
-  )
+  // 选中一级后，自动加载对应【二级分类 tier=2 & parent_id=一级id】
+  useEffect(() => {
+    if (!config || !form.category) {
+      setSubCategories([])
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      const supabase = makeClient(config)
+      const { data } = await supabase
+        .from("product_categories")
+        .select("id, name")
+        .eq("tier", 2)
+        .eq("parent_id", form.category)
+        .order("name")
+      if (!cancelled) setSubCategories(data ?? [])
+    })()
+    return () => (cancelled = true)
+  }, [config, form.category])
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
+    // 切换一级时清空二级
+    if (key === "category") update("subcategory", "" as FormState[K])
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
@@ -130,7 +141,6 @@ export function ProductForm() {
     e.preventDefault()
     if (!config) return
 
-    // 必填校验
     if (
       !form.name.trim() ||
       !form.slug.trim() ||
@@ -144,7 +154,6 @@ export function ProductForm() {
 
     setStatus({ type: "submitting" })
 
-    // 仅构造与 Products 表匹配的字段
     const gallery = form.gallery_images
       .split(/[\n,]/)
       .map((s) => s.trim())
@@ -154,15 +163,14 @@ export function ProductForm() {
       name: form.name.trim(),
       slug: form.slug.trim(),
       main_image: form.main_image.trim(),
-      category: form.category, // UUID（product_categories.id）
-      subcategory: form.subcategory, // 文本
-      gallery_images: gallery, // text[]
+      category: form.category,
+      subcategory: form.subcategory,
+      gallery_images: gallery,
       description: form.description.trim() || null,
-      specifications: form.specifications.trim() || null, // text
-      is_active: form.is_active, // 布尔
-      price: form.price.trim() === "" ? null : Number(form.price), // 数值
-      sort_order:
-        form.sort_order.trim() === "" ? null : Number(form.sort_order), // 数值
+      specifications: form.specifications.trim() || null,
+      is_active: form.is_active,
+      price: form.price.trim() === "" ? null : Number(form.price),
+      sort_order: form.sort_order.trim() === "" ? null : Number(form.sort_order),
     }
 
     try {
@@ -183,7 +191,7 @@ export function ProductForm() {
     }
   }
 
-  // 未配置时显示配置区
+  // 未配置链接
   if (!config) {
     return (
       <form
@@ -279,10 +287,7 @@ export function ProductForm() {
           <Field label="一级分类 category" required>
             <select
               value={form.category}
-              onChange={(e) => {
-                update("category", e.target.value)
-                update("subcategory", "") // 重置二级
-              }}
+              onChange={(e) => update("category", e.target.value)}
               className={inputClass}
               disabled={categories.length === 0}
             >
@@ -301,15 +306,15 @@ export function ProductForm() {
             <select
               value={form.subcategory}
               onChange={(e) => update("subcategory", e.target.value)}
-              disabled={!form.category}
+              disabled={!form.category || subCategories.length === 0}
               className={inputClass + " disabled:opacity-50"}
             >
               <option value="">
                 {form.category ? "请选择" : "请先选一级分类"}
               </option>
-              {subOptions.map((s) => (
-                <option key={s} value={s}>
-                  {s}
+              {subCategories.map((item) => (
+                <option key={item.id} value={item.name}>
+                  {item.name}
                 </option>
               ))}
             </select>

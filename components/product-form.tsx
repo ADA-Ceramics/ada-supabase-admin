@@ -45,7 +45,6 @@ type Status =
 
 type CategoryItem = { id: string; name: string }
 
-// 关键：接收 editId 和 initForm，支持编辑模式
 export function ProductForm({
   editId = null,
   initForm = null,
@@ -57,7 +56,6 @@ export function ProductForm({
   const [urlInput, setUrlInput] = useState("")
   const [keyInput, setKeyInput] = useState("")
 
-  // 表单状态：只在这里修改，不会被 initForm 反复覆盖
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [showOptional, setShowOptional] = useState(false)
   const [status, setStatus] = useState<Status>({ type: "idle" })
@@ -66,12 +64,12 @@ export function ProductForm({
   const [childCats, setChildCats] = useState<CategoryItem[]>([])
   const [errMsg, setErrMsg] = useState<string | null>(null)
 
-  // 关键：initForm 只在页面首次加载时回填一次，不会再更新
+  // ✅✅✅ 已经修复：只加载一次
   useEffect(() => {
     if (initForm) {
       setForm(initForm)
     }
-  }, [initForm])
+  }, [])
 
   useEffect(() => {
     const saved = loadConfig()
@@ -82,7 +80,6 @@ export function ProductForm({
     }
   }, [])
 
-  // 查询一级分类
   useEffect(() => {
     if (!config) return
     let abort = false
@@ -106,7 +103,6 @@ export function ProductForm({
     return () => { abort = true }
   }, [config])
 
-  // 查询二级分类
   useEffect(() => {
     if (!config || !form.category) {
       setChildCats([])
@@ -127,7 +123,6 @@ export function ProductForm({
     return () => { abort = true }
   }, [config, form.category])
 
-  // 关键：handleFieldChange 必须能修改 form 状态
   const handleFieldChange = <K extends keyof FormState>(key: K, val: FormState[K]) => {
     if (key === "category") {
       setForm(prev => ({ ...prev, category: val, subcategory: "" }))
@@ -148,7 +143,6 @@ export function ProductForm({
     setConfig(null)
   }
 
-  // 提交：支持新增/编辑
   const submitForm = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!config) return
@@ -165,7 +159,7 @@ export function ProductForm({
       slug: form.slug.trim(),
       main_image: form.main_image.trim(),
       category: form.category,
-      subcategory: form.subcategory,
+      subcategory: subcategory: form.subcategory,
       gallery_images: galleryArr,
       description: form.description.trim() || null,
       specifications: form.specifications.trim() || null,
@@ -178,14 +172,12 @@ export function ProductForm({
       const sb = makeClient(config)
 
       if (editId) {
-        // 编辑模式：更新数据
         const { error } = await sb
           .from("products")
           .update(payload)
           .eq("id", editId)
         if (error) throw error
       } else {
-        // 新增模式：插入数据
         const { error } = await sb.from("products").insert(payload)
         if (error) throw error
       }

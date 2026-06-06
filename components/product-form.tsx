@@ -59,7 +59,6 @@ export function ProductForm() {
   const [childCats, setChildCats] = useState<CategoryItem[]>([])
   const [errMsg, setErrMsg] = useState<string | null>(null)
 
-  // 读取本地supabase配置
   useEffect(() => {
     const saved = loadConfig()
     if (saved) {
@@ -69,7 +68,7 @@ export function ProductForm() {
     }
   }, [])
 
-  // ✅ 只查一级 tier=1
+  // 固定：只查询 tier=1 一级大类
   useEffect(() => {
     if (!config) return
     let abort = false
@@ -79,7 +78,7 @@ export function ProductForm() {
         const { data, error } = await sb
           .from("product_categories")
           .select("id,name")
-          .eq("tier", 1) // 关键：只拿一级
+          .eq("tier", 1)
           .order("name")
         if (abort) return
         if (error) throw error
@@ -93,7 +92,7 @@ export function ProductForm() {
     return () => { abort = true }
   }, [config])
 
-  // ✅ 选中一级，只查当前父ID的二级 tier=2
+  // 选中一级，只查对应parent_id、tier=2的二级
   useEffect(() => {
     if (!config || !form.category) {
       setChildCats([])
@@ -201,14 +200,14 @@ export function ProductForm() {
         </label>
 
         <div className="grid grid-cols-2 gap-4">
-          {/* 一级：只tier1 */}
+          {/*一级只展示tier=1 */}
           <label>一级分类 category*
             <select value={form.category} onChange={e=>handleFieldChange("category",e.target.value)} className="border rounded w-full px-3 py-2">
               <option value="">请选择</option>
               {topCats.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>
-          {/* 二级：选中一级才加载对应tier2 */}
+          {/*二级仅选中一级后加载对应tier=2 */}
           <label>二级分类 subcategory*
             <select disabled={!form.category} value={form.subcategory} onChange={e=>handleFieldChange("subcategory",e.target.value)} className="border rounded w-full px-3 py-2 disabled:opacity-50">
               <option value="">{form.category ? "请选择" : "请先选一级分类"}</option>

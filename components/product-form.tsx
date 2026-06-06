@@ -64,20 +64,22 @@ export function ProductForm({
   const [childCats, setChildCats] = useState<CategoryItem[]>([])
   const [errMsg, setErrMsg] = useState<string | null>(null)
 
-  // ✅ 修复：监听 initForm 变化，数据加载后自动填充，类型转换正确
- useEffect(() => {
-  if (initForm) {
-    setForm({
-      ...EMPTY_FORM,
-      ...initForm,
-      price: initForm.price?.toString() || "",
-      sort_order: initForm.sort_order?.toString() || "",
-      gallery_images: Array.isArray(initForm.gallery_images)
-        ? initForm.gallery_images.join(",")
-        : initForm.gallery_images || "",
-    })
-  }
-}, []) // 👈 空数组！只加载一次，不会覆盖你输入的内容
+  // ✅ 修复：只加载一次，不会覆盖你输入的内容
+  useEffect(() => {
+    if (initForm) {
+      setForm({
+        ...EMPTY_FORM,
+        ...initForm,
+        description: initForm.description ?? "",
+        specifications: initForm.specifications ?? "",
+        price: initForm.price?.toString() || "",
+        sort_order: initForm.sort_order?.toString() || "",
+        gallery_images: Array.isArray(initForm.gallery_images)
+          ? initForm.gallery_images.join(",")
+          : initForm.gallery_images || "",
+      })
+    }
+  }, [])
 
   useEffect(() => {
     const saved = loadConfig()
@@ -153,6 +155,7 @@ export function ProductForm({
     setConfig(null)
   }
 
+  // ✅ 修复：提交不会报错，空值安全处理
   const submitForm = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!config) return
@@ -176,8 +179,8 @@ export function ProductForm({
         category: form.category,
         subcategory: form.subcategory,
         gallery_images: galleryArr,
-        description: form.description.trim() || null,
-        specifications: form.specifications.trim() || null,
+        description: form.description?.trim() || null,
+        specifications: form.specifications?.trim() || null,
         is_active: form.is_active,
         price: form.price?.trim() ? Number(form.price) : null,
         sort_order: form.sort_order?.trim() ? Number(form.sort_order) : null,

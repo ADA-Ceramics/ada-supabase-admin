@@ -69,7 +69,7 @@ export function ProductForm() {
     }
   }, [])
 
-  // 加载【一级分类 tier=1】
+  // ✅ 只查一级 tier=1
   useEffect(() => {
     if (!config) return
     let abort = false
@@ -79,7 +79,7 @@ export function ProductForm() {
         const { data, error } = await sb
           .from("product_categories")
           .select("id,name")
-          .eq("tier", 1)
+          .eq("tier", 1) // 关键：只拿一级
           .order("name")
         if (abort) return
         if (error) throw error
@@ -93,7 +93,7 @@ export function ProductForm() {
     return () => { abort = true }
   }, [config])
 
-  // 选中一级 → 自动加载对应二级 tier=2 & parent_id=选中一级id
+  // ✅ 选中一级，只查当前父ID的二级 tier=2
   useEffect(() => {
     if (!config || !form.category) {
       setChildCats([])
@@ -115,7 +115,6 @@ export function ProductForm() {
   }, [config, form.category])
 
   const handleFieldChange = <K extends keyof FormState>(key: K, val: FormState[K]) => {
-    // 更换一级，清空二级
     if (key === "category") {
       setForm(prev => ({ ...prev, category: val, subcategory: "" }))
     } else {
@@ -135,7 +134,6 @@ export function ProductForm() {
     setConfig(null)
   }
 
-  // 提交入库：category存UUID，subcategory存分类名字符串
   const submitForm = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!config) return
@@ -170,7 +168,6 @@ export function ProductForm() {
     }
   }
 
-  // 未配置连接页面
   if (!config) {
     return (
       <form onSubmit={saveSbConfig} className="max-w-md mx-auto border rounded-xl p-6">
@@ -204,14 +201,14 @@ export function ProductForm() {
         </label>
 
         <div className="grid grid-cols-2 gap-4">
-          {/*一级分类：DB tier=1 */}
+          {/* 一级：只tier1 */}
           <label>一级分类 category*
             <select value={form.category} onChange={e=>handleFieldChange("category",e.target.value)} className="border rounded w-full px-3 py-2">
               <option value="">请选择</option>
               {topCats.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>
-          {/*二级分类：DB tier=2 绑定父ID */}
+          {/* 二级：选中一级才加载对应tier2 */}
           <label>二级分类 subcategory*
             <select disabled={!form.category} value={form.subcategory} onChange={e=>handleFieldChange("subcategory",e.target.value)} className="border rounded w-full px-3 py-2 disabled:opacity-50">
               <option value="">{form.category ? "请选择" : "请先选一级分类"}</option>

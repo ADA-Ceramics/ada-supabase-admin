@@ -45,6 +45,7 @@ type Status =
 
 type CategoryItem = { id: string; name: string }
 
+// 关键：接收 editId 和 initForm，支持编辑模式
 export function ProductForm({
   editId = null,
   initForm = null,
@@ -56,6 +57,7 @@ export function ProductForm({
   const [urlInput, setUrlInput] = useState("")
   const [keyInput, setKeyInput] = useState("")
 
+  // 表单状态：只在这里修改，不会被 initForm 反复覆盖
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [showOptional, setShowOptional] = useState(false)
   const [status, setStatus] = useState<Status>({ type: "idle" })
@@ -64,7 +66,7 @@ export function ProductForm({
   const [childCats, setChildCats] = useState<CategoryItem[]>([])
   const [errMsg, setErrMsg] = useState<string | null>(null)
 
-  // 编辑模式：自动回填数据
+  // 关键：initForm 只在页面首次加载时回填一次，不会再更新
   useEffect(() => {
     if (initForm) {
       setForm(initForm)
@@ -125,6 +127,7 @@ export function ProductForm({
     return () => { abort = true }
   }, [config, form.category])
 
+  // 关键：handleFieldChange 必须能修改 form 状态
   const handleFieldChange = <K extends keyof FormState>(key: K, val: FormState[K]) => {
     if (key === "category") {
       setForm(prev => ({ ...prev, category: val, subcategory: "" }))
@@ -145,7 +148,7 @@ export function ProductForm({
     setConfig(null)
   }
 
-  // 提交：支持 新增 / 编辑
+  // 提交：支持新增/编辑
   const submitForm = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!config) return
@@ -195,8 +198,8 @@ export function ProductForm({
       }
 
     } catch (err) {
-      console.log("完整提交错误详情：", err)
-      setStatus({ type: "error", message: err instanceof Error ? err.message : `提交异常:${String(err)}` })
+      console.log("提交错误：", err)
+      setStatus({ type: "error", message: err instanceof Error ? err.message : "提交异常" })
     }
   }
 
@@ -225,25 +228,49 @@ export function ProductForm({
 
       <div className="flex flex-col gap-4">
         <label>产品名 name*
-          <input value={form.name} onChange={e=>handleFieldChange("name",e.target.value)} className="border rounded w-full px-3 py-2" placeholder="例如：8英寸陶瓷餐盘"/>
+          <input 
+            value={form.name} 
+            onChange={e=>handleFieldChange("name",e.target.value)} 
+            className="border rounded w-full px-3 py-2" 
+            placeholder="例如：8英寸陶瓷餐盘"
+          />
         </label>
         <label>URL别名 slug*
-          <input value={form.slug} onChange={e=>handleFieldChange("slug",e.target.value)} className="border rounded w-full px-3 py-2" placeholder="8-inch-ceramic-dinner-plate"/>
+          <input 
+            value={form.slug} 
+            onChange={e=>handleFieldChange("slug",e.target.value)} 
+            className="border rounded w-full px-3 py-2" 
+            placeholder="8-inch-ceramic-dinner-plate"
+          />
         </label>
         <label>主图链接 main_image*
-          <input type="url" value={form.main_image} onChange={e=>handleFieldChange("main_image",e.target.value)} className="border rounded w-full px-3 py-2"/>
+          <input 
+            type="url" 
+            value={form.main_image} 
+            onChange={e=>handleFieldChange("main_image",e.target.value)} 
+            className="border rounded w-full px-3 py-2"
+          />
         </label>
 
         <div className="grid grid-cols-2 gap-4">
           <label>一级分类 category*
-            <select value={form.category} onChange={e=>handleFieldChange("category",e.target.value)} className="border rounded w-full px-3 py-2">
+            <select 
+              value={form.category} 
+              onChange={e=>handleFieldChange("category",e.target.value)} 
+              className="border rounded w-full px-3 py-2"
+            >
               <option value="">请选择</option>
               {topCats.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>
           
           <label>二级分类 subcategory*
-            <select disabled={!form.category} value={form.subcategory} onChange={e=>handleFieldChange("subcategory",e.target.value)} className="border rounded w-full px-3 py-2 disabled:opacity-50">
+            <select 
+              disabled={!form.category} 
+              value={form.subcategory} 
+              onChange={e=>handleFieldChange("subcategory",e.target.value)} 
+              className="border rounded w-full px-3 py-2 disabled:opacity-50"
+            >
               <option value="">{form.category ? "请选择" : "请先选一级分类"}</option>
               {childCats.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
@@ -259,13 +286,28 @@ export function ProductForm({
       {showOptional && (
         <div className="mt-4 flex flex-col gap-4">
           <label>多图（换行/逗号分隔）
-            <textarea rows={3} value={form.gallery_images} onChange={e=>handleFieldChange("gallery_images",e.target.value)} className="border rounded w-full px-3 py-2"/>
+            <textarea 
+              rows={3} 
+              value={form.gallery_images} 
+              onChange={e=>handleFieldChange("gallery_images",e.target.value)} 
+              className="border rounded w-full px-3 py-2"
+            />
           </label>
           <label>描述 description
-            <textarea rows={3} value={form.description} onChange={e=>handleFieldChange("description",e.target.value)} className="border rounded w-full px-3 py-2"/>
+            <textarea 
+              rows={3} 
+              value={form.description} 
+              onChange={e=>handleFieldChange("description",e.target.value)} 
+              className="border rounded w-full px-3 py-2"
+            />
           </label>
           <label>规格 specifications
-            <textarea rows={3} value={form.specifications} onChange={e=>handleFieldChange("specifications",e.target.value)} className="border rounded w-full px-3 py-2"/>
+            <textarea 
+              rows={3} 
+              value={form.specifications} 
+              onChange={e=>handleFieldChange("specifications",e.target.value)} 
+              className="border rounded w-full px-3 py-2"
+            />
           </label>
           <div className="grid grid-cols-2 gap-4">
             <label>批发价 price<input type="number" step="0.01" value={form.price} onChange={e=>handleFieldChange("price",e.target.value)} className="border rounded w-full px-3 py-2"/></label>

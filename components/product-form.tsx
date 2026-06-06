@@ -68,7 +68,7 @@ export function ProductForm() {
     }
   }, [])
 
-  // 固定：只查询 tier=1 一级大类
+  // 固定：只查询 tier=1 一级大类（你数据库里的5个）
   useEffect(() => {
     if (!config) return
     let abort = false
@@ -200,18 +200,19 @@ export function ProductForm() {
         </label>
 
         <div className="grid grid-cols-2 gap-4">
-          {/*一级只展示tier=1 */}
+          {/* 一级分类：自动加载 tier=1 的5个大类 */}
           <label>一级分类 category*
             <select value={form.category} onChange={e=>handleFieldChange("category",e.target.value)} className="border rounded w-full px-3 py-2">
               <option value="">请选择</option>
               {topCats.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>
-          {/*二级仅选中一级后加载对应tier=2 */}
+          
+          {/* 二级分类：已修复 value={item.id} */}
           <label>二级分类 subcategory*
             <select disabled={!form.category} value={form.subcategory} onChange={e=>handleFieldChange("subcategory",e.target.value)} className="border rounded w-full px-3 py-2 disabled:opacity-50">
               <option value="">{form.category ? "请选择" : "请先选一级分类"}</option>
-              {childCats.map(item=><option key={item.id} value={item.name}>{item.name}</option>)}
+              {childCats.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>
         </div>

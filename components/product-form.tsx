@@ -1,5 +1,4 @@
 "use client"
-
 import type React from "react"
 import { useEffect, useState } from "react"
 import {
@@ -46,7 +45,6 @@ type Status =
 
 type CategoryItem = { id: string; name: string }
 
-// 新增：支持编辑模式的参数
 export function ProductForm({
   editId = null,
   initForm = null,

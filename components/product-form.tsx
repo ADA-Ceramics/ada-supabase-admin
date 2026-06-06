@@ -64,7 +64,7 @@ export function ProductForm({
   const [childCats, setChildCats] = useState<CategoryItem[]>([])
   const [errMsg, setErrMsg] = useState<string | null>(null)
 
-  // ✅ 修复：编辑页数据只加载一次，不会覆盖输入
+  // ✅ 修复：监听 initForm 变化，数据加载后自动填充，类型转换正确
   useEffect(() => {
     if (initForm) {
       setForm({
@@ -153,7 +153,6 @@ export function ProductForm({
     setConfig(null)
   }
 
-  // ✅ 修复：提交不会卡死，错误会正常提示
   const submitForm = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!config) return
@@ -165,13 +164,11 @@ export function ProductForm({
     setStatus({ type: "submitting" })
 
     try {
-      // ✅ 修复：多图格式正确
       const galleryArr = form.gallery_images
         .split(/[\n,]/)
         .map(i => i.trim())
         .filter(Boolean)
 
-      // ✅ 修复：数字字段空值 → null，不报错
       const payload = {
         name: form.name.trim(),
         slug: form.slug.trim(),
@@ -225,9 +222,6 @@ export function ProductForm({
     )
   }
 
-  // ==============================================
-  // ✅ 这里 100% 保留你原来的布局、样式、结构
-  // ==============================================
   return (
     <form onSubmit={submitForm} className="max-w-2xl mx-auto border rounded-xl p-6">
       <div className="flex justify-between items-center mb-5">
